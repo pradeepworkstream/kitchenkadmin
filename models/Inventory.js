@@ -12,6 +12,9 @@ const InventorySchema = new mongoose.Schema(
     // used on UI next to qty input (LB/Bags/Packs/etc)
     unit: { type: String, default: "" },
 
+    // stock quantity
+    stock: { type: Number, default: 0 },
+
     // optional (if you want later)
     regPrice: { type: Number, default: 0 },
     sizeText: { type: String, default: "" }, // e.g., "10lb", "4lb", "28oz"

@@ -1,6 +1,22 @@
 import dotenv from "dotenv";
 import mongoose from "mongoose";
-import Inventory from "../models/Inventory.js";
+
+// Use Product model instead of Inventory
+const ProductSchema = new mongoose.Schema(
+  {
+    name: { type: String, required: true, index: true },
+    category: { type: String, index: true },
+    brandOptions: { type: [String], default: [] },
+    unit: { type: String },
+    isActive: { type: Boolean, default: true },
+    regPrice: { type: Number, default: 0 },
+    sizeText: { type: String },
+    stock: { type: Number, default: 0 },
+  },
+  { timestamps: true }
+);
+
+const Product = mongoose.models.Product || mongoose.model("Product", ProductSchema);
 import { INVENTORY_DATA } from "../data/inventoryData.js";
 
 dotenv.config();
@@ -11,23 +27,24 @@ async function seed() {
     console.log("✅ Mongo connected");
 
     // optional: clear old data
-    await Inventory.deleteMany({});
-    console.log("🧹 Old inventory cleared");
+    await Product.deleteMany({});
+    console.log("🧹 Old products cleared");
 
     // insert
-    await Inventory.insertMany(
+    const result = await Product.insertMany(
       INVENTORY_DATA.map((x) => ({
-        category: x.category,
         name: x.name,
+        category: x.category,
         brandOptions: x.brandOptions || [],
         unit: x.unit || "",
         regPrice: x.regPrice || 0,
         sizeText: x.sizeText || "",
+        stock: 10, // Add some stock
         isActive: true,
       }))
     );
 
-    console.log("✅ Seed completed");
+    console.log(`✅ Inserted ${result.length} product items`);
     process.exit(0);
   } catch (e) {
     console.error("❌ Seed failed:", e);

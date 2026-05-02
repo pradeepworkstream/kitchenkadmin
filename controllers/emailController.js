@@ -216,3 +216,39 @@ export const sendInventoryAttachmentEmail = async (req, res) => {
     return res.status(500).json({ success: false, message: err.message || "Server error" });
   }
 };
+
+export const sendReorderEmail = async (req, res) => {
+  try {
+    const { text, toEmail, subject, fromEmail } = req.body;
+    console.log('Email sendReorderEmail called:', { toEmail, subject, fromEmail, text: text?.substring(0, 100) + '...' });
+
+    if (!toEmail) return res.status(400).json({ success: false, message: "toEmail is required" });
+    if (!text) return res.status(400).json({ success: false, message: "text is required" });
+    if (!subject) return res.status(400).json({ success: false, message: "subject is required" });
+    if (!fromEmail) return res.status(400).json({ success: false, message: "fromEmail is required" });
+
+    const transporter = getMailer();
+
+    const html = `
+      <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;">
+        <p>Hi Vendor,</p>
+        <p>Please find the reorder request below:</p>
+        <pre style="background:#f3f4f6;padding:12px;border-radius:4px;white-space:pre-wrap;">${text}</pre>
+        <p>Please deliver as soon as possible.</p>
+        <p style="color:#6b7280;">– KitchenK Admin</p>
+      </div>
+    `;
+
+    await transporter.sendMail({
+      from: fromEmail,
+      to: toEmail,
+      subject: subject,
+      html,
+    });
+
+    return res.json({ success: true });
+  } catch (err) {
+    console.error("sendReorderEmail error:", err);
+    return res.status(500).json({ success: false, message: err.message || "Server error" });
+  }
+};

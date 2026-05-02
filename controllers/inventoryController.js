@@ -2,17 +2,50 @@
 import Inventory from "../models/Inventory.js";
 
 /**
- * GET /api/inventory/list
- * Used by EmailForm + Admin table
+ * GET /api/inventory/list or /api/products
+ * Used by Admin table with pagination and filters
  */
 export const listInventory = async (req, res) => {
   try {
-    const items = await Inventory.find({ isActive: true })
-      .sort({ category: 1, name: 1 });
+    console.log("🔍 Starting inventory list query...");
+    const { page = 1, limit = 20, search = "", category = "", stock = "all" } = req.query;
 
-    return res.json({ success: true, items });
+    const query = { isActive: true };
+
+    // Search filter
+    if (search) {
+      query.$or = [
+        { name: { $regex: search, $options: "i" } },
+        { category: { $regex: search, $options: "i" } },
+        { unit: { $regex: search, $options: "i" } },
+      ];
+    }
+
+    // Category filter
+    if (category) {
+      query.category = category;
+    }
+
+    // Stock filter
+    if (stock === "low") {
+      query.stock = { $lte: 5 };
+    } else if (stock === "out") {
+      query.stock = 0;
+    }
+
+    const skip = (page - 1) * limit;
+    const total = await Inventory.countDocuments(query);
+    const pages = Math.ceil(total / limit);
+
+    const items = await Inventory.find(query)
+      .sort({ category: 1, name: 1 })
+      .skip(skip)
+      .limit(parseInt(limit));
+
+    console.log(`✅ Found ${items.length} inventory items (page ${page}/${pages})`);
+    return res.json({ success: true, data: items, page: parseInt(page), pages });
   } catch (err) {
-    console.error(err);
+    console.error("❌ Error in listInventory:", err);
     return res.json({ success: false, message: err.message });
   }
 };
@@ -23,7 +56,7 @@ export const listInventory = async (req, res) => {
  */
 export const createInventoryItem = async (req, res) => {
   try {
-    const { category, name, brandOptions, unit, regPrice, sizeText } = req.body;
+    const { category, name, brandOptions, unit, regPrice, sizeText, stock } = req.body;
 
     if (!category || !name) {
       return res.json({ success: false, message: "Category and Name are required" });
@@ -36,6 +69,7 @@ export const createInventoryItem = async (req, res) => {
       unit: unit || "",
       regPrice: regPrice || 0,
       sizeText: sizeText || "",
+      stock: stock || 0,
     });
 
     return res.json({ success: true, item });
