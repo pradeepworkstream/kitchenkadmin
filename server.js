@@ -16,6 +16,8 @@ const app = express();
 const allowedOrigins = [
   "https://gogrocer.ca",
   "https://www.gogrocer.ca",
+  "https://kkstores.com",
+  "https://www.kkstores.com",
   "http://localhost:5173",
   "http://localhost:5176",
   "http://localhost:5177",
