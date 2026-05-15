@@ -56,7 +56,7 @@ export const listInventory = async (req, res) => {
  */
 export const createInventoryItem = async (req, res) => {
   try {
-    const { category, name, brandOptions, unit, regPrice, sizeText, stock } = req.body;
+    const { category, name, brand, vendor, unit, regPrice, sizeText, stock } = req.body;
 
     if (!category || !name) {
       return res.json({ success: false, message: "Category and Name are required" });
@@ -65,7 +65,8 @@ export const createInventoryItem = async (req, res) => {
     const item = await Inventory.create({
       category: category.trim(),
       name: name.trim(),
-      brandOptions: brandOptions || [],
+      brand: brand || "",
+      vendor: vendor || "",
       unit: unit || "",
       regPrice: regPrice || 0,
       sizeText: sizeText || "",
@@ -130,6 +131,36 @@ export const deleteInventoryItem = async (req, res) => {
     }
 
     return res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    return res.json({ success: false, message: err.message });
+  }
+};
+
+/**
+ * PUT /api/inventory/:id/stock
+ * User → Update only stock quantity
+ */
+export const updateInventoryStock = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { stock } = req.body;
+
+    if (stock === undefined || stock === null) {
+      return res.json({ success: false, message: "Stock quantity is required" });
+    }
+
+    const item = await Inventory.findByIdAndUpdate(
+      id,
+      { stock: parseInt(stock) },
+      { new: true, runValidators: true }
+    );
+
+    if (!item) {
+      return res.json({ success: false, message: "Item not found" });
+    }
+
+    return res.json({ success: true, item });
   } catch (err) {
     console.error(err);
     return res.json({ success: false, message: err.message });

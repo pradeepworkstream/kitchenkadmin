@@ -6,6 +6,16 @@ const InventorySchema = new mongoose.Schema(
     category: { type: String, required: true, trim: true, index: true },
     name: { type: String, required: true, trim: true, index: true },
 
+    // brand field
+    brand: { type: String, default: "" },
+
+    // vendor field
+    vendor: {
+      type: String,
+      enum: ["Walmart", "Miest", "Costco", "Aldi", "Sam's", "Spicebazar", "Tirupati", "Indiabazar", "Webstaurant", "Resto Depot"],
+      default: "",
+    },
+
     // dropdown
     brandOptions: { type: [String], default: [] },
 
