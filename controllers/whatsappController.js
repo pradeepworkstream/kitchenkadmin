@@ -1,119 +1,103 @@
+// controllers/whatsappController.js
 import axios from "axios";
 
-const cleanPhone = (v) => String(v || "").replace(/[^\d]/g, ""); // digits only
+const cleanPhone = (v) => String(v || "").replace(/\D/g, ""); // digits only
 
+// ─── Shared WA sender ────────────────────────────────────────────────────────
+async function sendWAText(toPhone, text) {
+  const { WA_PHONE_NUMBER_ID, WA_TOKEN, WA_API_VERSION = "v20.0" } = process.env;
+
+  if (!WA_PHONE_NUMBER_ID || !WA_TOKEN) {
+    throw Object.assign(
+      new Error("WA_PHONE_NUMBER_ID / WA_TOKEN missing in .env"),
+      { status: 500 }
+    );
+  }
+
+  const url = `https://graph.facebook.com/${WA_API_VERSION}/${WA_PHONE_NUMBER_ID}/messages`;
+
+  const { data } = await axios.post(
+    url,
+    {
+      messaging_product: "whatsapp",
+      to:   toPhone,
+      type: "text",
+      text: { body: text },
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${WA_TOKEN}`,
+        "Content-Type": "application/json",
+      },
+      timeout: 15_000,
+    }
+  );
+
+  return data;
+}
+
+// ─── Controllers ─────────────────────────────────────────────────────────────
+
+/**
+ * POST /api/whatsapp/send-text
+ */
 export const sendWhatsAppText = async (req, res) => {
   try {
     const toPhone = cleanPhone(req.body?.toPhone);
-    const text = String(req.body?.text || "").trim();
+    const text    = String(req.body?.text || "").trim();
 
     if (!toPhone) return res.status(400).json({ success: false, message: "toPhone is required" });
-    if (!text) return res.status(400).json({ success: false, message: "text is required" });
+    if (!text)    return res.status(400).json({ success: false, message: "text is required" });
 
-    const phoneNumberId = process.env.WA_PHONE_NUMBER_ID;
-    const token = process.env.WA_TOKEN;
-    const apiVersion = process.env.WA_API_VERSION || "v20.0";
-
-    if (!phoneNumberId || !token) {
-      return res.status(500).json({
-        success: false,
-        message: "WA_PHONE_NUMBER_ID / WA_TOKEN missing in .env",
-      });
-    }
-
-    const url = `https://graph.facebook.com/${apiVersion}/${phoneNumberId}/messages`;
-
-    const payload = {
-      messaging_product: "whatsapp",
-      to: toPhone,
-      type: "text",
-      text: { body: text },
-    };
-
-    const resp = await axios.post(url, payload, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      timeout: 15000,
-    });
-
-    return res.json({ success: true, data: resp.data });
+    const data = await sendWAText(toPhone, text);
+    return res.json({ success: true, data });
   } catch (err) {
-    // ✅ Better error output
     const metaError = err?.response?.data?.error;
-    console.error("WA error:", metaError || err.message);
+    console.error("sendWhatsAppText error:", metaError || err.message);
 
-    return res.status(err?.response?.status || 500).json({
+    return res.status(err?.response?.status || err.status || 500).json({
       success: false,
-      message: metaError?.message || "WhatsApp send failed",
-      meta: metaError
-        ? {
-            type: metaError.type,
-            code: metaError.code,
-            error_subcode: metaError.error_subcode,
-            fbtrace_id: metaError.fbtrace_id,
-          }
-        : undefined,
+      message: metaError?.message || err.message || "WhatsApp send failed",
+      ...(metaError && {
+        meta: {
+          type:           metaError.type,
+          code:           metaError.code,
+          error_subcode:  metaError.error_subcode,
+          fbtrace_id:     metaError.fbtrace_id,
+        },
+      }),
     });
   }
 };
 
+/**
+ * POST /api/whatsapp/send-reorder
+ */
 export const sendReorder = async (req, res) => {
   try {
-    const { text, toPhone } = req.body;
-    console.log('WhatsApp sendReorder called:', { text: text?.substring(0, 100) + '...', toPhone });
+    const toPhone = cleanPhone(req.body?.toPhone);
+    const text    = String(req.body?.text || "").trim();
 
     if (!toPhone) return res.status(400).json({ success: false, message: "toPhone is required" });
-    const vendorPhone = cleanPhone(toPhone);
-    const messageText = String(text || "").trim();
+    if (!text)    return res.status(400).json({ success: false, message: "text is required" });
 
-    if (!messageText) return res.status(400).json({ success: false, message: "text is required" });
-
-    const phoneNumberId = process.env.WA_PHONE_NUMBER_ID;
-    const token = process.env.WA_TOKEN;
-    const apiVersion = process.env.WA_API_VERSION || "v20.0";
-
-    if (!phoneNumberId || !token) {
-      return res.status(500).json({
-        success: false,
-        message: "WA_PHONE_NUMBER_ID / WA_TOKEN missing in .env",
-      });
-    }
-
-    const url = `https://graph.facebook.com/${apiVersion}/${phoneNumberId}/messages`;
-
-    const payload = {
-      messaging_product: "whatsapp",
-      to: vendorPhone,
-      type: "text",
-      text: { body: messageText },
-    };
-
-    const resp = await axios.post(url, payload, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      timeout: 15000,
-    });
-
-    return res.json({ success: true, data: resp.data });
+    const data = await sendWAText(toPhone, text);
+    return res.json({ success: true, data });
   } catch (err) {
     const metaError = err?.response?.data?.error;
-    console.error("Reorder WA error:", metaError || err.message);
+    console.error("sendReorder error:", metaError || err.message);
 
-    return res.status(err?.response?.status || 500).json({
+    return res.status(err?.response?.status || err.status || 500).json({
       success: false,
-      message: metaError?.message || "Reorder send failed",
-      meta: metaError
-        ? {
-            type: metaError.type,
-            code: metaError.code,
-            error_subcode: metaError.error_subcode,
-            fbtrace_id: metaError.fbtrace_id,
-          }
-        : undefined,
+      message: metaError?.message || err.message || "Reorder send failed",
+      ...(metaError && {
+        meta: {
+          type:           metaError.type,
+          code:           metaError.code,
+          error_subcode:  metaError.error_subcode,
+          fbtrace_id:     metaError.fbtrace_id,
+        },
+      }),
     });
   }
 };

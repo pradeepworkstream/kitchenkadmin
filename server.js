@@ -14,8 +14,8 @@ dotenv.config();
 
 const app = express();
 
-// Allowed frontend domains
-const allowedOrigins = [
+// ─── Allowed Origins ────────────────────────────────────────────────────────
+const ALLOWED_ORIGINS = new Set([
   "https://kkstores.com",
   "https://www.kkstores.com",
   "https://api.kkstores.com",
@@ -23,128 +23,90 @@ const allowedOrigins = [
   "http://localhost:5176",
   "http://localhost:5177",
   "http://localhost:3000",
-];
+]);
 
-// CORS configuration
-const corsOptions = {
-  origin: (origin, callback) => {
-    // allow Postman / mobile apps / curl
-    if (!origin) {
-      return callback(null, true);
-    }
+const isOriginAllowed = (origin) =>
+  !origin ||
+  ALLOWED_ORIGINS.has(origin) ||
+  /^http:\/\/localhost:\d+$/.test(origin);
 
-    // allow listed domains
-    if (allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    }
+// ─── CORS ────────────────────────────────────────────────────────────────────
+app.use(
+  cors({
+    origin: (origin, cb) =>
+      isOriginAllowed(origin)
+        ? cb(null, true)
+        : cb(new Error(`CORS blocked for origin: ${origin}`)),
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: [
+      "Origin",
+      "Accept",
+      "Content-Type",
+      "Authorization",
+      "X-Requested-With",
+      "Cache-Control",
+    ],
+    credentials: true,
+    optionsSuccessStatus: 204,
+  })
+);
 
-    // allow localhost during development
-    if (origin && origin.startsWith("http://localhost:")) {
-      return callback(null, true);
-    }
+// Handle preflight for all routes
+app.options(/.*/, cors());
 
-    console.log("❌ Blocked by CORS:", origin);
-
-    return callback(new Error(`CORS blocked for origin: ${origin}`));
-  },
-
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-
-  allowedHeaders: [
-    "Origin",
-    "Accept",
-    "Content-Type",
-    "Authorization",
-    "X-Requested-With",
-    "Cache-Control",
-  ],
-
-  credentials: true,
-  optionsSuccessStatus: 204,
-  preflightContinue: false,
-};
-
-// Middlewares
-app.use(cors(corsOptions));
-// app.options("*", cors(corsOptions));
-app.options(/.*/, cors(corsOptions));
-
-app.use((req, res, next) => {
-  const origin = req.headers.origin;
-  if (origin && (allowedOrigins.includes(origin) || origin.startsWith("http://localhost:"))) {
-    res.header("Access-Control-Allow-Origin", origin);
-    res.header("Access-Control-Allow-Credentials", "true");
-    res.header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
-    res.header(
-      "Access-Control-Allow-Headers",
-      "Origin,Accept,Content-Type,Authorization,X-Requested-With,Cache-Control"
-    );
-  }
-
-  if (req.method === "OPTIONS") {
-    return res.sendStatus(204);
-  }
-
-  next();
-});
-
+// ─── Body Parser ─────────────────────────────────────────────────────────────
 app.use(express.json({ limit: "10mb" }));
 
-// Request logger
-app.use((req, res, next) => {
+// ─── Request Logger ──────────────────────────────────────────────────────────
+app.use((req, _res, next) => {
   console.log(`📨 ${req.method} ${req.originalUrl}`);
   next();
 });
 
-// Routes
-console.log("📋 Setting up routes...");
-
+// ─── Routes ──────────────────────────────────────────────────────────────────
 app.use("/api/inventory", inventoryRouter);
 app.use("/api/auth", authRouter);
 app.use("/api/whatsapp", whatsappRouter);
 app.use("/api/reports", reportRouter);
 app.use("/send-email", emailRouter);
-
-// Products API
 app.get("/api/products", listInventory);
 
-console.log("✅ Routes configured");
+// ─── Health ──────────────────────────────────────────────────────────────────
+app.get("/", (_req, res) => res.send("API working"));
+app.get("/health", (_req, res) =>
+  res.json({ ok: true, time: new Date().toISOString() })
+);
 
-// Health routes
-app.get("/", (req, res) => {
-  res.send("API working");
+// ─── Global Error Handler ────────────────────────────────────────────────────
+app.use((err, _req, res, _next) => {
+  console.error("❌ Unhandled error:", err.message);
+  res.status(err.status || 500).json({ success: false, message: err.message || "Server error" });
 });
 
-app.get("/health", (req, res) => {
-  res.json({
-    ok: true,
-    time: new Date().toISOString(),
-  });
-});
-
-// Server port
+// ─── Start ───────────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 5001;
 
-// Start server
 async function start() {
+  if (!process.env.MONGO_URI) {
+    console.error("❌ MONGO_URI missing in .env");
+    process.exit(1);
+  }
+  if (!process.env.JWT_SECRET) {
+    console.error("❌ JWT_SECRET missing in .env");
+    process.exit(1);
+  }
+
   try {
-    if (!process.env.MONGO_URI) {
-      throw new Error("MONGO_URI missing in .env");
-    }
-
     console.log("🔌 Connecting to MongoDB...");
-
     await mongoose.connect(process.env.MONGO_URI, {
       serverSelectionTimeoutMS: 5000,
       socketTimeoutMS: 45000,
     });
-
     console.log("✅ MongoDB connected");
 
-    app.listen(PORT, "0.0.0.0", () => {
-      console.log(`✅ Server running on http://0.0.0.0:${PORT}`);
-    });
-
+    app.listen(PORT, "0.0.0.0", () =>
+      console.log(`✅ Server running on http://0.0.0.0:${PORT}`)
+    );
   } catch (err) {
     console.error("❌ Server start failed:", err.message);
     process.exit(1);

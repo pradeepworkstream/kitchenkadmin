@@ -2,51 +2,51 @@
 import Inventory from "../models/Inventory.js";
 
 /**
- * GET /api/inventory/list or /api/products
- * Used by Admin table with pagination and filters
+ * GET /api/inventory/list  |  GET /api/products
+ * Supports: page, limit, search, category, stock (all|low|out)
  */
 export const listInventory = async (req, res) => {
   try {
-    console.log("🔍 Starting inventory list query...");
-    const { page = 1, limit = 20, search = "", category = "", stock = "all" } = req.query;
+    const {
+      page = 1,
+      limit = 20,
+      search = "",
+      category = "",
+      stock = "all",
+    } = req.query;
+
+    const pageNum  = Math.max(1, parseInt(page)  || 1);
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 20)); // cap at 100
 
     const query = { isActive: true };
 
-    // Search filter
     if (search) {
       query.$or = [
-        { name: { $regex: search, $options: "i" } },
+        { name:     { $regex: search, $options: "i" } },
         { category: { $regex: search, $options: "i" } },
-        { unit: { $regex: search, $options: "i" } },
+        { unit:     { $regex: search, $options: "i" } },
       ];
     }
 
-    // Category filter
-    if (category) {
-      query.category = category;
-    }
+    if (category) query.category = category;
 
-    // Stock filter
-    if (stock === "low") {
-      query.stock = { $lte: 5 };
-    } else if (stock === "out") {
-      query.stock = 0;
-    }
+    if (stock === "low")      query.stock = { $gt: 0, $lte: 5 };
+    else if (stock === "out") query.stock = 0;
 
-    const skip = (page - 1) * limit;
+    const skip  = (pageNum - 1) * limitNum;
     const total = await Inventory.countDocuments(query);
-    const pages = Math.ceil(total / limit);
+    const pages = Math.ceil(total / limitNum);
 
     const items = await Inventory.find(query)
       .sort({ category: 1, name: 1 })
       .skip(skip)
-      .limit(parseInt(limit));
+      .limit(limitNum)
+      .lean(); // plain JS objects — faster, less memory
 
-    console.log(`✅ Found ${items.length} inventory items (page ${page}/${pages})`);
-    return res.json({ success: true, data: items, page: parseInt(page), pages });
+    return res.json({ success: true, data: items, page: pageNum, pages, total });
   } catch (err) {
-    console.error("❌ Error in listInventory:", err);
-    return res.json({ success: false, message: err.message });
+    console.error("listInventory error:", err);
+    return res.status(500).json({ success: false, message: err.message });
   }
 };
 
@@ -58,63 +58,65 @@ export const createInventoryItem = async (req, res) => {
   try {
     const { category, name, brand, vendor, unit, regPrice, sizeText, stock } = req.body;
 
-    if (!category || !name) {
-      return res.json({ success: false, message: "Category and Name are required" });
+    if (!category?.trim() || !name?.trim()) {
+      return res.status(400).json({ success: false, message: "Category and Name are required" });
     }
 
     const item = await Inventory.create({
       category: category.trim(),
-      name: name.trim(),
-      brand: brand || "",
-      vendor: vendor || "",
-      unit: unit || "",
-      regPrice: regPrice || 0,
+      name:     name.trim(),
+      brand:    brand    || "",
+      vendor:   vendor   || "",
+      unit:     unit     || "",
+      regPrice: Number(regPrice) || 0,
       sizeText: sizeText || "",
-      stock: stock || 0,
+      stock:    Number(stock)    || 0,
     });
 
-    return res.json({ success: true, item });
+    return res.status(201).json({ success: true, item });
   } catch (err) {
     if (err.code === 11000) {
-      return res.json({
+      return res.status(409).json({
         success: false,
         message: "Item already exists in this category",
       });
     }
-
-    console.error(err);
-    return res.json({ success: false, message: err.message });
+    console.error("createInventoryItem error:", err);
+    return res.status(500).json({ success: false, message: err.message });
   }
 };
 
 /**
  * PUT /api/inventory/:id
- * Admin → Update item
+ * Admin → Update item (full update)
  */
 export const updateInventoryItem = async (req, res) => {
   try {
     const { id } = req.params;
 
+    // Prevent overwriting protected fields via body
+    const { _id, __v, ...updateData } = req.body;
+
     const item = await Inventory.findByIdAndUpdate(
       id,
-      { ...req.body },
+      { $set: updateData },
       { new: true, runValidators: true }
     );
 
     if (!item) {
-      return res.json({ success: false, message: "Item not found" });
+      return res.status(404).json({ success: false, message: "Item not found" });
     }
 
     return res.json({ success: true, item });
   } catch (err) {
-    console.error(err);
-    return res.json({ success: false, message: err.message });
+    console.error("updateInventoryItem error:", err);
+    return res.status(500).json({ success: false, message: err.message });
   }
 };
 
 /**
  * DELETE /api/inventory/:id
- * Admin → Soft delete (recommended)
+ * Admin → Soft delete
  */
 export const deleteInventoryItem = async (req, res) => {
   try {
@@ -127,42 +129,45 @@ export const deleteInventoryItem = async (req, res) => {
     );
 
     if (!item) {
-      return res.json({ success: false, message: "Item not found" });
+      return res.status(404).json({ success: false, message: "Item not found" });
     }
 
-    return res.json({ success: true });
+    return res.json({ success: true, message: "Item deactivated" });
   } catch (err) {
-    console.error(err);
-    return res.json({ success: false, message: err.message });
+    console.error("deleteInventoryItem error:", err);
+    return res.status(500).json({ success: false, message: err.message });
   }
 };
 
 /**
  * PUT /api/inventory/:id/stock
- * User → Update only stock quantity
+ * Auth user → Update stock quantity only
  */
 export const updateInventoryStock = async (req, res) => {
   try {
     const { id } = req.params;
-    const { stock } = req.body;
+    const stock = parseInt(req.body.stock);
 
-    if (stock === undefined || stock === null) {
-      return res.json({ success: false, message: "Stock quantity is required" });
+    if (isNaN(stock) || stock < 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Stock must be a non-negative integer",
+      });
     }
 
     const item = await Inventory.findByIdAndUpdate(
       id,
-      { stock: parseInt(stock) },
+      { stock },
       { new: true, runValidators: true }
     );
 
     if (!item) {
-      return res.json({ success: false, message: "Item not found" });
+      return res.status(404).json({ success: false, message: "Item not found" });
     }
 
     return res.json({ success: true, item });
   } catch (err) {
-    console.error(err);
-    return res.json({ success: false, message: err.message });
+    console.error("updateInventoryStock error:", err);
+    return res.status(500).json({ success: false, message: err.message });
   }
 };

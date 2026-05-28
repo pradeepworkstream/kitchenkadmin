@@ -1,54 +1,51 @@
-import dotenv from "dotenv";
-import mongoose from "mongoose";
-
-// Use Product model instead of Inventory
-const ProductSchema = new mongoose.Schema(
-  {
-    name: { type: String, required: true, index: true },
-    category: { type: String, index: true },
-    brandOptions: { type: [String], default: [] },
-    unit: { type: String },
-    isActive: { type: Boolean, default: true },
-    regPrice: { type: Number, default: 0 },
-    sizeText: { type: String },
-    stock: { type: Number, default: 0 },
-  },
-  { timestamps: true }
-);
-
-const Product = mongoose.models.Product || mongoose.model("Product", ProductSchema);
+// scripts/seedInventory.js
+// Usage: npm run seed
+import dotenv    from "dotenv";
+import mongoose  from "mongoose";
+import Inventory from "../models/Inventory.js";
 import { INVENTORY_DATA } from "../data/inventoryData.js";
 
 dotenv.config();
 
 async function seed() {
+  if (!process.env.MONGO_URI) {
+    console.error("❌ MONGO_URI missing in .env");
+    process.exit(1);
+  }
+
   try {
     await mongoose.connect(process.env.MONGO_URI);
-    console.log("✅ Mongo connected");
+    console.log("✅ MongoDB connected");
 
-    // optional: clear old data
-    await Product.deleteMany({});
-    console.log("🧹 Old products cleared");
+    // Remove only existing inventory items (soft-deleted or active)
+    const deleted = await Inventory.deleteMany({});
+    console.log(`🧹 Cleared ${deleted.deletedCount} existing items`);
 
-    // insert
-    const result = await Product.insertMany(
-      INVENTORY_DATA.map((x) => ({
-        name: x.name,
-        category: x.category,
-        brandOptions: x.brandOptions || [],
-        unit: x.unit || "",
-        regPrice: x.regPrice || 0,
-        sizeText: x.sizeText || "",
-        stock: 10, // Add some stock
-        isActive: true,
-      }))
-    );
+    const docs = INVENTORY_DATA.map((x) => ({
+      category:     x.category,
+      name:         x.name,
+      brandOptions: x.brandOptions || [],
+      unit:         x.unit         || "",
+      regPrice:     x.regPrice     || 0,
+      sizeText:     x.sizeText     || "",
+      stock:        10,        // default starting stock
+      isActive:     true,
+    }));
 
-    console.log(`✅ Inserted ${result.length} product items`);
+    const result = await Inventory.insertMany(docs, { ordered: false });
+    console.log(`✅ Inserted ${result.length} inventory items`);
+  } catch (err) {
+    // ordered:false lets us see partial success; log duplicate key errors separately
+    if (err.code === 11000) {
+      console.warn("⚠️  Some items skipped (duplicate category+name)");
+    } else {
+      console.error("❌ Seed failed:", err.message);
+      process.exit(1);
+    }
+  } finally {
+    await mongoose.disconnect();
+    console.log("🔌 Disconnected");
     process.exit(0);
-  } catch (e) {
-    console.error("❌ Seed failed:", e);
-    process.exit(1);
   }
 }
 
