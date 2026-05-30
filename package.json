@@ -5,7 +5,8 @@
   "main": "server.js",
   "scripts": {
     "server": "nodemon server.js",
-    "seed": "node scripts/seedInventory.js"
+    "seed": "node scripts/seedInventory.js",
+    "monitor": "node scripts/monitor.js"
   },
   "keywords": [],
   "author": "",
