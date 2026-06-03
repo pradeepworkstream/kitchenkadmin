@@ -13,6 +13,7 @@ export const listInventory = async (req, res) => {
       search = "",
       category = "",
       stock = "all",
+      vendor = "",
     } = req.query;
 
     const pageNum  = Math.max(1, parseInt(page)  || 1);
@@ -29,6 +30,7 @@ export const listInventory = async (req, res) => {
     }
 
     if (category) query.category = category;
+    if (vendor) query.vendor = vendor;
 
     if (stock === "low")      query.stock = { $gt: 0, $lte: 5 };
     else if (stock === "out") query.stock = 0;
@@ -46,6 +48,22 @@ export const listInventory = async (req, res) => {
     return res.json({ success: true, data: items, page: pageNum, pages, total });
   } catch (err) {
     console.error("listInventory error:", err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+export const listInventoryCategories = async (req, res) => {
+  try {
+    const { vendor = "" } = req.query;
+    const query = { isActive: true };
+    if (vendor) query.vendor = vendor;
+
+    const categories = await Inventory.distinct("category", query);
+    categories.sort((a, b) => a.localeCompare(b));
+
+    return res.json({ success: true, data: categories });
+  } catch (err) {
+    console.error("listInventoryCategories error:", err);
     return res.status(500).json({ success: false, message: err.message });
   }
 };

@@ -12,7 +12,7 @@ const InventorySchema = new mongoose.Schema(
     // vendor field
     vendor: {
       type: String,
-      enum: ["Walmart", "Miest", "Costco", "Aldi", "Sam's", "Spicebazar", "Tirupati", "Indiabazar", "Webstaurant", "Resto Depot"],
+      enum: ["", "Walmart", "Miest", "Costco", "Aldi", "Sam's", "Spice Bazaar", "Spicebazar", "Mid East", "Tirupati", "Indiabazar", "Webstaurant", "Resto Depot"],
       default: "",
     },
 
@@ -34,6 +34,6 @@ const InventorySchema = new mongoose.Schema(
 );
 
 // prevent duplicates (same category + same name)
-InventorySchema.index({ category: 1, name: 1 }, { unique: true });
+InventorySchema.index({ vendor: 1, category: 1, name: 1 }, { unique: true });
 
 export default mongoose.model("Inventory", InventorySchema);

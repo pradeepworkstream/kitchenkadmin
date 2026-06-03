@@ -3,13 +3,18 @@ import axios from "axios";
 
 const cleanPhone = (v) => String(v || "").replace(/\D/g, ""); // digits only
 
-// ─── Shared WA sender ────────────────────────────────────────────────────────
+const isPlaceholderValue = (value) =>
+  !value || /your_access_token_here|your_phone_number_id_here|example\.com|<.*?>/i.test(value);
+
+// ─── Shared WA sender ───────────────────────────────────────────────────────
 async function sendWAText(toPhone, text) {
   const { WA_PHONE_NUMBER_ID, WA_TOKEN, WA_API_VERSION = "v20.0" } = process.env;
 
-  if (!WA_PHONE_NUMBER_ID || !WA_TOKEN) {
+  if (isPlaceholderValue(WA_PHONE_NUMBER_ID) || isPlaceholderValue(WA_TOKEN)) {
     throw Object.assign(
-      new Error("WA_PHONE_NUMBER_ID / WA_TOKEN missing in .env"),
+      new Error(
+        "WA_PHONE_NUMBER_ID or WA_TOKEN is missing/placeholder in .env. Set valid WhatsApp Business API credentials."
+      ),
       { status: 500 }
     );
   }

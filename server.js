@@ -8,6 +8,7 @@ import inventoryRouter from "./routes/inventoryRoute.js";
 import authRouter from "./routes/authRoute.js";
 import whatsappRouter from "./routes/whatsappRoute.js";
 import reportRouter from "./routes/reportRoute.js";
+import analyticsRouter from "./routes/analyticsRoute.js";
 import { listInventory } from "./controllers/inventoryController.js";
 
 dotenv.config();
@@ -65,6 +66,7 @@ app.use((req, _res, next) => {
 
 // ─── Routes ──────────────────────────────────────────────────────────────────
 app.use("/api/inventory", inventoryRouter);
+app.use("/api/analytics", analyticsRouter);
 app.use("/api/auth", authRouter);
 app.use("/api/whatsapp", whatsappRouter);
 app.use("/api/reports", reportRouter);
@@ -86,6 +88,15 @@ app.use((err, _req, res, _next) => {
 // ─── Start ───────────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 5001;
 
+const looksLikePlaceholderValue = (value) =>
+  !value || /your_[a-z_]+_here|example\.com|<.*>|some_long_random_secret|StrongPassword123/i.test(value);
+
+function warnIfPlaceholder(name, value) {
+  if (looksLikePlaceholderValue(value)) {
+    console.warn(`⚠️ ${name} looks missing or like a placeholder in .env. Update it before using the WhatsApp integration.`);
+  }
+}
+
 async function start() {
   if (!process.env.MONGO_URI) {
     console.error("❌ MONGO_URI missing in .env");
@@ -95,6 +106,9 @@ async function start() {
     console.error("❌ JWT_SECRET missing in .env");
     process.exit(1);
   }
+
+  warnIfPlaceholder("WA_PHONE_NUMBER_ID", process.env.WA_PHONE_NUMBER_ID);
+  warnIfPlaceholder("WA_TOKEN", process.env.WA_TOKEN);
 
   try {
     console.log("🔌 Connecting to MongoDB...");
