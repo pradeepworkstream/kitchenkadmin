@@ -19,7 +19,7 @@ export const listInventory = async (req, res) => {
     const pageNum  = Math.max(1, parseInt(page)  || 1);
     const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 20)); // cap at 100
 
-    const query = { isActive: true };
+    const query = {};
 
     if (search) {
       query.$or = [
@@ -32,18 +32,20 @@ export const listInventory = async (req, res) => {
     if (category) query.category = category;
     if (vendor) query.vendor = vendor;
 
-    if (stock === "low")      query.stock = { $gt: 0, $lte: 5 };
-    else if (stock === "out") query.stock = 0;
-
     const skip  = (pageNum - 1) * limitNum;
     const total = await Inventory.countDocuments(query);
     const pages = Math.ceil(total / limitNum);
 
-    const items = await Inventory.find(query)
+    const items = (await Inventory.find(query)
       .sort({ category: 1, name: 1 })
       .skip(skip)
       .limit(limitNum)
-      .lean(); // plain JS objects — faster, less memory
+      .lean())
+      .map((item) => ({
+        ...item,
+        unit:           item.unit || "Box",
+        quantityNeeded: item.quantityNeeded ?? 1,
+      }));
 
     return res.json({ success: true, data: items, page: pageNum, pages, total });
   } catch (err) {
@@ -74,21 +76,18 @@ export const listInventoryCategories = async (req, res) => {
  */
 export const createInventoryItem = async (req, res) => {
   try {
-    const { category, name, brand, vendor, unit, regPrice, sizeText, stock } = req.body;
+    const { vendor, category, name, quantityNeeded, unit } = req.body;
 
-    if (!category?.trim() || !name?.trim()) {
-      return res.status(400).json({ success: false, message: "Category and Name are required" });
+    if (!vendor?.trim() || !category?.trim() || !name?.trim()) {
+      return res.status(400).json({ success: false, message: "Vendor, Category, and Name are required" });
     }
 
     const item = await Inventory.create({
-      category: category.trim(),
-      name:     name.trim(),
-      brand:    brand    || "",
-      vendor:   vendor   || "",
-      unit:     unit     || "",
-      regPrice: Number(regPrice) || 0,
-      sizeText: sizeText || "",
-      stock:    Number(stock)    || 0,
+      vendor:         String(vendor).trim(),
+      category:       String(category).trim(),
+      name:           String(name).trim(),
+      unit:           String(unit || "Box").trim(),
+      quantityNeeded: Number(quantityNeeded) || 1,
     });
 
     return res.status(201).json({ success: true, item });
@@ -96,7 +95,7 @@ export const createInventoryItem = async (req, res) => {
     if (err.code === 11000) {
       return res.status(409).json({
         success: false,
-        message: "Item already exists in this category",
+        message: "Item already exists for this vendor and category",
       });
     }
     console.error("createInventoryItem error:", err);
@@ -112,8 +111,23 @@ export const updateInventoryItem = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Prevent overwriting protected fields via body
-    const { _id, __v, ...updateData } = req.body;
+    const { _id, __v, brand, regPrice, sizeText, stock, isActive, ...updateData } = req.body;
+
+    if (updateData.vendor !== undefined) {
+      updateData.vendor = String(updateData.vendor).trim();
+    }
+    if (updateData.category !== undefined) {
+      updateData.category = String(updateData.category).trim();
+    }
+    if (updateData.name !== undefined) {
+      updateData.name = String(updateData.name).trim();
+    }
+    if (updateData.unit !== undefined) {
+      updateData.unit = String(updateData.unit || "Box").trim();
+    }
+    if (updateData.quantityNeeded !== undefined) {
+      updateData.quantityNeeded = Number(updateData.quantityNeeded) || 1;
+    }
 
     const item = await Inventory.findByIdAndUpdate(
       id,
@@ -140,17 +154,12 @@ export const deleteInventoryItem = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const item = await Inventory.findByIdAndUpdate(
-      id,
-      { isActive: false },
-      { new: true }
-    );
-
+    const item = await Inventory.findByIdAndDelete(id);
     if (!item) {
       return res.status(404).json({ success: false, message: "Item not found" });
     }
 
-    return res.json({ success: true, message: "Item deactivated" });
+    return res.json({ success: true, message: "Item deleted" });
   } catch (err) {
     console.error("deleteInventoryItem error:", err);
     return res.status(500).json({ success: false, message: err.message });

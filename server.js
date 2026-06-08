@@ -5,6 +5,7 @@ import mongoose from "mongoose";
 
 import emailRouter from "./routes/emailRoute.js";
 import inventoryRouter from "./routes/inventoryRoute.js";
+import lookupRouter from "./routes/lookupRoute.js";
 import authRouter from "./routes/authRoute.js";
 import whatsappRouter from "./routes/whatsappRoute.js";
 import reportRouter from "./routes/reportRoute.js";
@@ -66,11 +67,13 @@ app.use((req, _res, next) => {
 
 // ─── Routes ──────────────────────────────────────────────────────────────────
 app.use("/api/inventory", inventoryRouter);
+app.use("/api/lookups", lookupRouter);
 app.use("/api/analytics", analyticsRouter);
 app.use("/api/auth", authRouter);
 app.use("/api/whatsapp", whatsappRouter);
 app.use("/api/reports", reportRouter);
 app.use("/send-email", emailRouter);
+app.use("/api/email",  emailRouter);
 app.get("/api/products", listInventory);
 
 // ─── Health ──────────────────────────────────────────────────────────────────

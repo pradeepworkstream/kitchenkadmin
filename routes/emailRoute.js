@@ -3,8 +3,11 @@ import { sendEmail, sendInventoryAttachmentEmail, sendReorderEmail } from "../co
 
 const router = express.Router();
 
-// POST /send-email
+// POST /send-email  (legacy)
 router.post("/", sendEmail);
+
+// POST /api/email/send  (cart sidebar purchase-order email)
+router.post("/send", sendEmail);
 
 // POST /send-email/inventory-attachment
 router.post("/inventory-attachment", sendInventoryAttachmentEmail);

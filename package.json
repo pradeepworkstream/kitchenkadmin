@@ -6,6 +6,7 @@
   "scripts": {
     "server": "nodemon server.js",
     "seed": "node scripts/seedInventory.js",
+    "backfill": "node scripts/backfillQuantityUnit.js",
     "monitor": "node scripts/monitor.js"
   },
   "keywords": [],
