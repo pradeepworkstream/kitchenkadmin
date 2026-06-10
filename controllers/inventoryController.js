@@ -36,16 +36,22 @@ export const listInventory = async (req, res) => {
     const total = await Inventory.countDocuments(query);
     const pages = Math.ceil(total / limitNum);
 
+    const isAdmin = req.user?.role === "admin";
+
     const items = (await Inventory.find(query)
       .sort({ category: 1, name: 1 })
       .skip(skip)
       .limit(limitNum)
       .lean())
-      .map((item) => ({
-        ...item,
-        unit:           item.unit || "Box",
-        quantityNeeded: item.quantityNeeded ?? 1,
-      }));
+      .map((item) => {
+        const { defaultPrice, ...rest } = item;
+        return {
+          ...rest,
+          unit:           item.unit || "Box",
+          quantityNeeded: item.quantityNeeded ?? 1,
+          ...(isAdmin ? { defaultPrice: defaultPrice ?? 0 } : {}),
+        };
+      });
 
     return res.json({ success: true, data: items, page: pageNum, pages, total });
   } catch (err) {
@@ -76,7 +82,7 @@ export const listInventoryCategories = async (req, res) => {
  */
 export const createInventoryItem = async (req, res) => {
   try {
-    const { vendor, category, name, quantityNeeded, unit } = req.body;
+    const { vendor, category, name, quantityNeeded, unit, defaultPrice } = req.body;
 
     if (!vendor?.trim() || !category?.trim() || !name?.trim()) {
       return res.status(400).json({ success: false, message: "Vendor, Category, and Name are required" });
@@ -88,6 +94,7 @@ export const createInventoryItem = async (req, res) => {
       name:           String(name).trim(),
       unit:           String(unit || "Box").trim(),
       quantityNeeded: Number(quantityNeeded) || 1,
+      defaultPrice:   Number(defaultPrice) || 0,
     });
 
     return res.status(201).json({ success: true, item });
@@ -127,6 +134,9 @@ export const updateInventoryItem = async (req, res) => {
     }
     if (updateData.quantityNeeded !== undefined) {
       updateData.quantityNeeded = Number(updateData.quantityNeeded) || 1;
+    }
+    if (updateData.defaultPrice !== undefined) {
+      updateData.defaultPrice = Number(updateData.defaultPrice) || 0;
     }
 
     const item = await Inventory.findByIdAndUpdate(

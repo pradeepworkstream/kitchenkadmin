@@ -11,6 +11,7 @@ import whatsappRouter from "./routes/whatsappRoute.js";
 import reportRouter from "./routes/reportRoute.js";
 import analyticsRouter from "./routes/analyticsRoute.js";
 import { listInventory } from "./controllers/inventoryController.js";
+import { optionalAuth } from "./middleware/auth.js";
 
 dotenv.config();
 
@@ -74,7 +75,7 @@ app.use("/api/whatsapp", whatsappRouter);
 app.use("/api/reports", reportRouter);
 app.use("/send-email", emailRouter);
 app.use("/api/email",  emailRouter);
-app.get("/api/products", listInventory);
+app.get("/api/products", optionalAuth, listInventory);
 
 // ─── Health ──────────────────────────────────────────────────────────────────
 app.get("/", (_req, res) => res.send("API working"));

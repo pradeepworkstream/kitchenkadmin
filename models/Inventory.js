@@ -8,6 +8,7 @@ const InventorySchema = new mongoose.Schema(
     name: { type: String, required: true, trim: true, index: true },
     unit: { type: String, default: "Box", trim: true },
     quantityNeeded: { type: Number, default: 1 },
+    defaultPrice: { type: Number, default: 0 },
   },
   { timestamps: true }
 );

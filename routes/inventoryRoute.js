@@ -6,12 +6,12 @@ import {
   deleteInventoryItem,
 } from "../controllers/inventoryController.js";
 
-import { requireAdmin } from "../middleware/auth.js";
+import { requireAdmin, optionalAuth } from "../middleware/auth.js";
 
 const inventoryRouter = express.Router();
 
-// Public read
-inventoryRouter.get("/list", listInventory);
+// Public read (defaultPrice stripped for non-admins)
+inventoryRouter.get("/list", optionalAuth, listInventory);
 
 // Admin protected
 inventoryRouter.post("/", requireAdmin, createInventoryItem);

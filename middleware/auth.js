@@ -29,6 +29,24 @@ export const requireAuth = (req, res, next) => {
   next();
 };
 
+/**
+ * Decode the token if present, but never block the request.
+ * Lets handlers branch on req.user?.role without requiring auth.
+ */
+export const optionalAuth = (req, res, next) => {
+  const header = req.headers.authorization || "";
+  const token = header.startsWith("Bearer ") ? header.slice(7) : null;
+
+  if (token) {
+    try {
+      req.user = jwt.verify(token, process.env.JWT_SECRET);
+    } catch {
+      // ignore invalid/expired token — treat as anonymous
+    }
+  }
+  next();
+};
+
 /** Allow admin role only. */
 export const requireAdmin = (req, res, next) => {
   const decoded = verifyToken(req, res);
